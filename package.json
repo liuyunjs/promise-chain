@@ -20,5 +20,9 @@
     "promise",
     "chain",
     "promise-chain"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/liuyunjs/promise-chain"
+  }
 }

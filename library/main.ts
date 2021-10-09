@@ -12,7 +12,6 @@ type Context = {
   running: boolean;
 };
 
-
 type Operators = ReturnType<typeof operators>;
 
 export type ChainCallback = (valueOrReason: any, operators: Operators) => any;
@@ -92,37 +91,51 @@ const nested = (ctx: Context, rejected?: boolean): any => {
   );
 };
 
+const createError = (message: string) => {
+  const error = new Error(message);
+  error.name = 'ChainError';
+  return error;
+};
+
+const maybeThrowRunningError = (ctx: Context) => {
+  if (ctx.running) {
+    throw createError(
+      'the current chain has been started, please do not do this',
+    );
+  }
+};
+
 const operators = (ctx: Context) => ({
   pause(value?: any) {
-    if (ctx.resolve) {
+    if (ctx.resolve && ctx.running && !ctx.paused) {
       ctx.paused = true;
       ctx.index--;
       ctx.resolve(value == null ? ctx.value : value);
     }
   },
   rerun(params?: any) {
-    if (ctx.resolve) {
+    if (ctx.resolve && ctx.running) {
       ctx.paused = false;
       ctx.index = -1;
       ctx.resolve(params == null ? ctx.params : params);
     }
   },
   restart(value?: any) {
-    if (ctx.resolve) {
+    if (ctx.resolve && ctx.running && ctx.paused) {
       ctx.paused = false;
       ctx.index--;
       ctx.resolve(value == null ? ctx.value : value);
     }
   },
-  cancel(reason?: any) {
-    if (ctx.reject) {
+  cancel(reason?: string) {
+    if (ctx.reject && ctx.running) {
       ctx.paused = false;
       ctx.index = ctx.queue.length;
-      ctx.reject(reason == null ? new Error('ChainCancel') : reason);
+      ctx.reject(createError(reason || 'chain cancel'));
     }
   },
   stop(value?: any) {
-    if (ctx.resolve) {
+    if (ctx.resolve && ctx.running) {
       ctx.paused = false;
       ctx.index = ctx.queue.length;
       ctx.resolve(value == null ? ctx.value : value);
@@ -130,9 +143,7 @@ const operators = (ctx: Context) => ({
   },
 
   run(params?: any) {
-    if (ctx.running) {
-      throw new Error('this chain is running');
-    }
+    maybeThrowRunningError(ctx);
     clear(ctx);
     ctx.value = ctx.params = params;
     ctx.index = 0;
@@ -142,12 +153,14 @@ const operators = (ctx: Context) => ({
   },
 
   use(onFulfilled: ChainCallback | undefined, onRejected?: ChainCallback) {
+    maybeThrowRunningError(ctx);
     return (
       ctx.queue.push([wrap(ctx, onFulfilled), wrap(ctx, onRejected, true)]) - 1
     );
   },
 
   eject(index: number) {
+    maybeThrowRunningError(ctx);
     ctx.queue[index] = null;
   },
 });
