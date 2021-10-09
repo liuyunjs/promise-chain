@@ -1,0 +1,8 @@
+.idea
+*.log
+node_modules
+.prettierrc.js
+library
+favicon.svg
+index.html
+.gitignore
