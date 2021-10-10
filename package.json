@@ -1,6 +1,6 @@
 {
   "name": "@liuyunjs/promise-chain",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "liuyunjs",
   "license": "MIT",
   "main": "./dist/main.js",
