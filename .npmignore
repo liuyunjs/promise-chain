@@ -6,3 +6,4 @@ library
 favicon.svg
 index.html
 .gitignore
+index.js

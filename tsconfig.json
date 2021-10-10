@@ -3,7 +3,7 @@
     "target": "es5",
     "useDefineForClassFields": true,
     "module": "commonjs",
-    "lib": ["ESNext", "DOM"],
+    "lib": ["esnext", "DOM", "es2015"],
     "moduleResolution": "Node",
     "strict": true,
     "sourceMap": true,
