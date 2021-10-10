@@ -1,7 +1,7 @@
 type Task = (params: any) => Promise<any>;
 
 type Context = {
-  queue: ([Task, Task] | null)[];
+  queue: ([Task | undefined, Task | undefined] | null)[];
   index: number;
   paused: boolean;
   resolve: ((nextValue: any) => void) | null;
@@ -21,28 +21,22 @@ const promisify = (value: any) => {
   return Promise.resolve(value);
 };
 
-const wrap =
-  (ctx: Context, callback?: ChainCallback, rejected?: boolean) =>
-  (params: any) => {
+const wrap = (ctx: Context, callback?: ChainCallback) => {
+  if (!callback) return;
+  return (params: any) => {
     return new Promise((resolve, reject) => {
       ctx.resolve = resolve;
       ctx.reject = reject;
       if (ctx.paused) return;
 
-      let nextParams;
-      if (!callback) {
-        if (rejected) return reject(params);
-        nextParams = params;
-      } else {
-        try {
-          nextParams = callback(params, operators(ctx));
-        } catch (e) {
-          return reject(e);
-        }
+      try {
+        promisify(callback(params, operators(ctx))).then(resolve, reject);
+      } catch (e) {
+        reject(e);
       }
-      return promisify(nextParams).then(resolve, reject);
     });
   };
+};
 
 const getTask = (ctx: Context, rejected?: boolean): Task | void => {
   const key = +!!rejected;
@@ -91,9 +85,13 @@ const nested = (ctx: Context, rejected?: boolean): any => {
   );
 };
 
-const createError = (message: string) => {
+const createError = (message: string, code?: string) => {
   const error = new Error(message);
   error.name = 'ChainError';
+  if (code) {
+    // @ts-ignore
+    error.code = code;
+  }
   return error;
 };
 
@@ -131,7 +129,12 @@ const operators = (ctx: Context) => ({
     if (ctx.reject && ctx.running) {
       ctx.paused = false;
       ctx.index = ctx.queue.length;
-      ctx.reject(createError(reason || 'chain cancel'));
+      ctx.reject(
+        createError(
+          reason || 'the current execution chain has been cancelled',
+          'cancelled',
+        ),
+      );
     }
   },
   stop(value?: any) {
@@ -154,14 +157,14 @@ const operators = (ctx: Context) => ({
 
   use(onFulfilled: ChainCallback | undefined, onRejected?: ChainCallback) {
     maybeThrowRunningError(ctx);
-    return (
-      ctx.queue.push([wrap(ctx, onFulfilled), wrap(ctx, onRejected, true)]) - 1
-    );
+    return ctx.queue.push([wrap(ctx, onFulfilled), wrap(ctx, onRejected)]) - 1;
   },
 
   eject(index: number) {
-    maybeThrowRunningError(ctx);
-    ctx.queue[index] = null;
+    if (ctx.queue[index]) {
+      maybeThrowRunningError(ctx);
+      ctx.queue[index] = null;
+    }
   },
 });
 
