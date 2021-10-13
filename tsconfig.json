@@ -1,12 +1,12 @@
 {
   "compilerOptions": {
     "target": "es5",
-    "useDefineForClassFields": true,
+    "useDefineForClassFields": false,
     "module": "commonjs",
     "lib": ["esnext", "DOM", "es2015"],
     "moduleResolution": "Node",
     "strict": true,
-    "sourceMap": true,
+    "sourceMap": false,
     "declaration": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,

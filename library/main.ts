@@ -10,13 +10,19 @@ type Context = {
   value: any;
   params: any;
   running: boolean;
+  options: Options;
+};
+
+type Options = {
+  errorDelivery?: boolean;
+  undefinedErrorDelivery?: boolean;
 };
 
 type Operators = ReturnType<typeof operators>;
 
 export type ChainCallback = (valueOrReason: any, operators: Operators) => any;
 
-const promisify = (value: any) => {
+const promisify = (value: any): Promise<any> => {
   if (value != null && typeof value.then === 'function') return value;
   return Promise.resolve(value);
 };
@@ -48,7 +54,11 @@ const getTask = (ctx: Context, rejected?: boolean): Task | void => {
       task = curr[key];
       if (task) return task;
     }
-    ctx.index++;
+
+    ctx.index =
+      rejected && ctx.options.undefinedErrorDelivery === false
+        ? len
+        : ctx.index + 1;
   }
 };
 
@@ -78,7 +88,9 @@ const nested = (ctx: Context, rejected?: boolean): any => {
       clear(ctx);
       ctx.error = reason;
       if (rejected) {
-        ctx.index++;
+        ctx.index = ctx.options.errorDelivery
+          ? ctx.index + 1
+          : ctx.queue.length;
       }
       return nested(ctx, true);
     },
@@ -144,31 +156,36 @@ const operators = (ctx: Context) => ({
       ctx.resolve(value == null ? ctx.value : value);
     }
   },
-
-  run(params?: any) {
-    maybeThrowRunningError(ctx);
-    clear(ctx);
-    ctx.value = ctx.params = params;
-    ctx.index = 0;
-    ctx.paused = false;
-    ctx.running = true;
-    return nested(ctx);
-  },
-
-  use(onFulfilled: ChainCallback | undefined, onRejected?: ChainCallback) {
-    maybeThrowRunningError(ctx);
-    return ctx.queue.push([wrap(ctx, onFulfilled), wrap(ctx, onRejected)]) - 1;
-  },
-
-  eject(index: number) {
-    if (ctx.queue[index]) {
-      maybeThrowRunningError(ctx);
-      ctx.queue[index] = null;
-    }
-  },
 });
 
-export const chain = (): Operators =>
-  operators({
+export function chain(options?: Options) {
+  const ctx = {
     queue: [],
-  } as unknown as Context);
+    options: options || {},
+  } as unknown as Context;
+  return Object.assign(operators(ctx), {
+    run(params?: any) {
+      maybeThrowRunningError(ctx);
+      clear(ctx);
+      ctx.value = ctx.params = params;
+      ctx.index = 0;
+      ctx.paused = false;
+      ctx.running = true;
+      return nested(ctx);
+    },
+
+    use(onFulfilled: ChainCallback | undefined, onRejected?: ChainCallback) {
+      maybeThrowRunningError(ctx);
+      return (
+        ctx.queue.push([wrap(ctx, onFulfilled), wrap(ctx, onRejected)]) - 1
+      );
+    },
+
+    eject(index: number) {
+      if (ctx.queue[index]) {
+        maybeThrowRunningError(ctx);
+        ctx.queue[index] = null;
+      }
+    },
+  });
+}
